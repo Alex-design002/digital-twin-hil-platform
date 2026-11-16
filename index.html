@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Universal Digital Twin HIL Mission Control</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --panel: #121826;
+      --panel-2: #182133;
+      --border: #26324a;
+      --text: #e6edf7;
+      --muted: #8b9bb4;
+      --accent: #38bdf8;
+      --purple: #a78bfa;
+      --free: #22c55e;
+      --harsh: #f59e0b;
+      --stop: #ef4444;
+      --free-bg: rgba(34, 197, 94, 0.14);
+      --harsh-bg: rgba(245, 158, 11, 0.15);
+      --stop-bg: rgba(239, 68, 68, 0.16);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      background: radial-gradient(circle at top right, #162238 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+      line-height: 1.4;
+    }
+    .shell { max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 13px; }
+
+    /* Top Bar */
+    .topbar {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      display: grid; place-items: center; font-weight: 800; font-size: 14px;
+      box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+    }
+    .brand h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }
+    .brand .sub { font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    .dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--harsh); margin-right: 5px; vertical-align: middle;
+    }
+    .dot.live { background: var(--free); box-shadow: 0 0 8px var(--free); }
+    .dot.sim { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+    .mode-chip {
+      font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 999px;
+      letter-spacing: 0.4px; text-transform: uppercase;
+    }
+    .mode-live { background: var(--free-bg); color: var(--free); border: 1px solid rgba(34,197,94,0.45); }
+    .mode-sim { background: rgba(56,189,248,0.14); color: var(--accent); border: 1px solid rgba(56,189,248,0.4); }
+
+    .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .state-pill {
+      padding: 8px 16px; border-radius: 999px; font-weight: 800; font-size: 14px;
+      letter-spacing: 0.6px; border: 1px solid transparent; text-transform: uppercase;
+    }
+    .state-FREE { background: var(--free-bg); color: var(--free); border-color: rgba(34,197,94,.45); }
+    .state-HARSH { background: var(--harsh-bg); color: var(--harsh); border-color: rgba(245,158,11,.45); }
+    .state-STOP { background: var(--stop-bg); color: var(--stop); border-color: rgba(239,68,68,.55); animation: pulseStop 1.3s infinite; }
+    @keyframes pulseStop {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.35); }
+      50% { box-shadow: 0 0 14px 2px rgba(239,68,68,.45); }
+    }
+
+    button {
+      cursor: pointer; border: 1px solid var(--border); background: var(--panel-2);
+      color: var(--text); border-radius: 10px; padding: 7px 12px; font-size: 12.5px; font-weight: 600;
+      transition: all 0.14s ease;
+    }
+    button:hover { border-color: var(--accent); background: #1e293d; }
+    button.active { background: #0284c7; border-color: #38bdf8; color: #fff; }
+    button.estop {
+      background: #dc2626; border-color: #f87171; color: #fff; font-weight: 800; padding: 8px 16px;
+    }
+    button.estop:hover { background: #b91c1c; }
+
+    /* Model Fleet Bar */
+    .fleet-bar {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 13px 16px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .fleet-hdr {
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+    }
+    .fleet-hdr h2 { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .fleet-grid {
+      display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px;
+    }
+    @media (max-width: 1120px) { .fleet-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .fleet-grid { grid-template-columns: 1fr; } }
+
+    .model-card {
+      text-align: left; padding: 10px 12px; border-radius: 11px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .model-card.selected {
+      border-color: var(--accent); background: rgba(56, 189, 248, 0.13);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+    }
+    .model-card .m-name { font-weight: 700; font-size: 13px; color: #fff; }
+    .model-card .m-cat { font-size: 11px; color: var(--accent); font-weight: 600; }
+    .model-card .m-spec { font-size: 11px; color: var(--muted); }
+
+    .circuit-banner {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;
+      font-size: 12px; color: var(--muted); background: var(--bg);
+      border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;
+    }
+    .circuit-banner strong { color: var(--text); }
+
+    /* Custom Specs Drawer */
+    .specs-drawer {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+      display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end;
+    }
+    @media (max-width: 1000px) { .specs-drawer { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 600px) { .specs-drawer { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+    /* Hardware / Endpoint Strip */
+    .hw-strip {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 9px 14px; font-size: 12px; color: var(--muted);
+    }
+    .hw-chip {
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 3px 10px; color: var(--text);
+    }
+    .hw-chip span { color: var(--muted); margin-right: 4px; }
+    .ep-box { display: flex; gap: 6px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+    .ep-box input {
+      width: 215px; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 9px; font-size: 12px; font-family: ui-monospace, Consolas, monospace;
+    }
+
+    /* Main Grid */
+    .grid {
+      display: grid; grid-template-columns: 1.2fr 0.95fr; gap: 14px; align-items: start;
+    }
+    @media (max-width: 1024px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .card-hdr {
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+      border-bottom: 1px solid var(--border); padding-bottom: 10px;
+    }
+    .card-hdr h2 { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .badge {
+      font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 700;
+      background: rgba(56, 189, 248, 0.14); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 6px; background: var(--bg); padding: 4px; border-radius: 10px; border: 1px solid var(--border); }
+    .tab-btn { flex: 1; background: transparent; border: none; padding: 8px 12px; border-radius: 8px; color: var(--muted); }
+    .tab-btn.active { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+
+    /* Scenario Grid */
+    .scen-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    @media (max-width: 640px) { .scen-grid { grid-template-columns: 1fr; } }
+    .scen-card {
+      text-align: left; padding: 11px 12px; border-radius: 11px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .scen-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .scen-card.selected {
+      border-color: var(--accent); background: rgba(14, 165, 233, 0.14);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.4);
+    }
+    .scen-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+    .scen-title { font-weight: 700; font-size: 13.5px; color: #fff; }
+    .scen-surface { font-size: 11.5px; color: var(--accent); font-weight: 600; }
+    .scen-meta { font-size: 11.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; }
+    .mini-pill { font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px; }
+    .mp-FREE { background: var(--free-bg); color: var(--free); }
+    .mp-HARSH { background: var(--harsh-bg); color: var(--harsh); }
+    .mp-STOP { background: var(--stop-bg); color: var(--stop); }
+
+    /* Custom Condition Studio */
+    .hidden { display: none !important; }
+    .custom-top { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 640px) { .custom-top { grid-template-columns: 1fr; } }
+    label.field { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
+    select, input[type="text"], input[type="number"] {
+      background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 7px 9px; font-size: 12.5px; width: 100%;
+    }
+    .slider-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    @media (max-width: 640px) { .slider-grid { grid-template-columns: 1fr; } }
+    .slider-box {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 7px;
+    }
+    .slider-hdr { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+    .slider-val { font-family: ui-monospace, Consolas, monospace; font-weight: 700; color: var(--accent); font-size: 13.5px; }
+    input[type="range"] { width: 100%; accent-color: #38bdf8; cursor: pointer; }
+    .hint { font-size: 11px; color: var(--muted); }
+
+    .ctrl-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+    .seg-group { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .seg-label { font-size: 12px; color: var(--muted); font-weight: 600; margin-right: 4px; }
+
+    /* Telemetry Panel */
+    .lambda-wrap {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+    }
+    .lambda-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .lambda-num { font-family: ui-monospace, Consolas, monospace; font-size: 26px; font-weight: 800; }
+    .bar-track {
+      position: relative; height: 14px; background: var(--bg); border-radius: 999px;
+      border: 1px solid var(--border); overflow: hidden;
+    }
+    .bar-fill { height: 100%; width: 0%; transition: width 0.14s ease, background 0.14s ease; }
+    .marker {
+      position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,0.65); z-index: 2;
+    }
+    .bar-labels {
+      display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 5px;
+    }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    @media (max-width: 540px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px;
+    }
+    .kpi .k { font-size: 11px; color: var(--muted); }
+    .kpi .v { font-family: ui-monospace, Consolas, monospace; font-size: 15px; font-weight: 700; margin-top: 2px; }
+    .ok-txt { color: var(--free); }
+    .warn-txt { color: var(--harsh); }
+    .bad-txt { color: var(--stop); }
+
+    .pwm-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    @media (max-width: 540px) { .pwm-list { grid-template-columns: 1fr; } }
+    .pwm-item {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .pwm-hdr { display: flex; justify-content: space-between; font-size: 12px; }
+    .pwm-val { font-family: ui-monospace, Consolas, monospace; font-weight: 800; color: #fff; }
+    .pwm-bar { height: 6px; background: var(--bg); border-radius: 999px; overflow: hidden; }
+    .pwm-fill { height: 100%; background: var(--accent); transition: width 0.14s ease; }
+
+    .pkt-box {
+      font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+    }
+    .log-box {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px;
+      font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--muted);
+      max-height: 145px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <!-- Top Header -->
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-icon">DT-HIL</div>
+        <div>
+          <h1>Universal Digital Twin HIL Mission Control</h1>
+          <div class="sub">
+            <span><i id="connDot" class="dot"></i><span id="connText">Initializing…</span></span>
+            <span id="runModeBadge" class="mode-chip mode-sim">STANDALONE BROWSER SIM</span>
+            <span id="hostLabel">Host: GitHub Pages / Local</span>
+            <span id="condLabel">Active: —</span>
+          </div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div id="statePill" class="state-pill state-FREE">FREE</div>
+        <button id="btnAutoTop" onclick="setControl({control_mode: 'AUTO'})">AUTO Physics</button>
+        <button class="estop" onclick="setControl({control_mode: 'FORCE_STOP'})">E-STOP</button>
+      </div>
+    </div>
+
+    <!-- Model Fleet Selector -->
+    <div class="fleet-bar">
+      <div class="fleet-hdr">
+        <h2>Vehicle &amp; Circuit Digital Twin Fleet <span id="activeModelBadge" class="badge">Traxxas TRX-4 Defender</span></h2>
+        <button id="btnToggleSpecs" onclick="toggleCustomSpecsDrawer()">Custom Vehicle Specs &#9662;</button>
+      </div>
+      <div id="fleetGrid" class="fleet-grid"></div>
+      <div id="circuitBanner" class="circuit-banner">
+        <span>Circuit Topology: <strong id="circuitText">—</strong></span>
+        <span id="specsSummaryText">—</span>
+      </div>
+
+      <!-- Custom Vehicle Specs Drawer -->
+      <div id="customSpecsDrawer" class="specs-drawer hidden">
+        <label class="field"><span>Mass m (kg)</span><input id="spM" type="number" step="0.05" value="3.75" /></label>
+        <label class="field"><span>Wheelbase L (m)</span><input id="spL" type="number" step="0.005" value="0.324" /></label>
+        <label class="field"><span>CG Height h_cg (m)</span><input id="spHcg" type="number" step="0.005" value="0.135" /></label>
+        <label class="field"><span>Clearance h_clear (m)</span><input id="spHclear" type="number" step="0.005" value="0.080" /></label>
+        <label class="field"><span>Tire Radius r_tire (m)</span><input id="spRtire" type="number" step="0.002" value="0.059" /></label>
+        <label class="field"><span>Frontal Area A_f (m&sup2;)</span><input id="spAf" type="number" step="0.002" value="0.065" /></label>
+        <label class="field"><span>Drag Coeff C_d</span><input id="spCd" type="number" step="0.02" value="0.65" /></label>
+        <label class="field"><span>Low Force F_low (N)</span><input id="spFlow" type="number" step="1" value="45" /></label>
+        <label class="field"><span>High Force F_high (N)</span><input id="spFhigh" type="number" step="1" value="18" /></label>
+        <button class="active" onclick="applyCustomSpecs()">Apply Specs</button>
+      </div>
+    </div>
+
+    <!-- Hardware & Pi Wi-Fi Bridge Strip -->
+    <div class="hw-strip">
+      <div class="hw-chip"><span>Input:</span><strong id="hwInput">Wi-Fi / Web UI</strong></div>
+      <div class="hw-chip"><span>Actuator Link:</span><strong id="hwSerial">Browser Sim</strong></div>
+      <div class="hw-chip"><span>IMU:</span><strong id="hwImu">Preset / Sliders</strong></div>
+      <div class="hw-chip"><span>GPIO / Buzzer:</span><strong id="hwGpio">Virtual</strong></div>
+      <div class="ep-box">
+        <span style="font-weight:600;">Pi Wi-Fi / Bridge Endpoint:</span>
+        <input id="endpointInput" type="text" placeholder="http://192.168.x.x:5000" />
+        <button onclick="connectBridge()">Connect</button>
+        <button onclick="switchToStandalone()">Standalone Sim</button>
+        <button onclick="reloadExcel()" id="btnReloadExcel">Reload Excel</button>
+      </div>
+    </div>
+
+    <!-- Main 2-Column Cockpit -->
+    <div class="grid">
+      <!-- LEFT: Condition Selector -->
+      <div class="card">
+        <div class="card-hdr">
+          <h2>Condition &amp; Terrain Selector</h2>
+          <span id="condSourceBadge" class="badge">SCENARIO #1</span>
+        </div>
+
+        <div class="tabs">
+          <button id="tabPresetBtn" class="tab-btn active" onclick="switchTab('preset')">10 Track &amp; Weather Scenarios</button>
+          <button id="tabCustomBtn" class="tab-btn" onclick="switchTab('custom')">Custom Environment Sliders</button>
+        </div>
+
+        <div id="tabPresetPanel">
+          <div class="ctrl-bar" style="margin-bottom: 10px;">
+            <span class="hint">Select any terrain/weather scenario to drive the active vehicle Digital Twin:</span>
+            <div class="seg-group">
+              <button onclick="stepScenario('prev')">&laquo; Prev</button>
+              <button onclick="stepScenario('next')">Next &raquo;</button>
+              <button onclick="copyActiveToCustom()">Edit in Custom &rarr;</button>
+            </div>
+          </div>
+          <div id="scenGrid" class="scen-grid"></div>
+        </div>
+
+        <div id="tabCustomPanel" class="hidden">
+          <div class="custom-top">
+            <label class="field">
+              <span>Surface Quick-Fill (Reference Library)</span>
+              <select id="surfacePresetSelect" onchange="applySurfaceQuickFill()">
+                <option value="">-- Pick surface preset --</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Condition Name</span>
+              <input id="custTrackName" type="text" value="Custom Wi-Fi Trail" onchange="scheduleCustomUpdate()" />
+            </label>
+          </div>
+
+          <div class="slider-grid" style="margin-top:10px;">
+            <div class="slider-box">
+              <div class="slider-hdr"><span>Slope Angle (&theta;)</span><span id="valSlope" class="slider-val">5.0°</span></div>
+              <input id="slSlope" type="range" min="-30" max="55" step="0.5" value="5" oninput="onSliderMove()" />
+              <div id="hintRollover" class="hint">Static rollover threshold: &pm;50.2°</div>
+            </div>
+            <div class="slider-box">
+              <div class="slider-hdr"><span>Tire-Ground Friction (&mu;)</span><span id="valMu" class="slider-val">0.85</span></div>
+              <input id="slMu" type="range" min="0.05" max="1.00" step="0.01" value="0.85" oninput="onSliderMove()" />
+              <div class="hint">0.10 Ice &bull; 0.35 Wet Grass &bull; 0.85 Dry Asphalt</div>
+            </div>
+            <div class="slider-box">
+              <div class="slider-hdr"><span>Rolling Resistance (Crr)</span><span id="valCrr" class="slider-val">0.020</span></div>
+              <input id="slCrr" type="range" min="0.010" max="0.400" step="0.005" value="0.020" oninput="onSliderMove()" />
+              <div class="hint">0.020 Tarmac &bull; 0.180 Wet Mud &bull; 0.300 Deep Snow</div>
+            </div>
+            <div class="slider-box">
+              <div class="slider-hdr"><span>Mud / Obstacle Depth</span><span id="valDepth" class="slider-val">0.000 m</span></div>
+              <input id="slDepth" type="range" min="0.000" max="0.140" step="0.005" value="0.000" oninput="onSliderMove()" />
+              <div id="hintClearance" class="hint">Vehicle clearance limit: 0.080 m (High-Centered)</div>
+            </div>
+            <div class="slider-box">
+              <div class="slider-hdr"><span>Headwind Speed</span><span id="valWind" class="slider-val">10 km/h</span></div>
+              <input id="slWind" type="range" min="0" max="100" step="1" value="10" oninput="onSliderMove()" />
+              <div class="hint">Aerodynamic drag grows with (v_target + v_wind)&sup2;</div>
+            </div>
+            <div class="slider-box">
+              <div class="slider-hdr"><span>Ambient Temperature</span><span id="valTemp" class="slider-val">+22 °C</span></div>
+              <input id="slTemp" type="range" min="-25" max="45" step="1" value="22" oninput="onSliderMove()" />
+              <div class="hint">&lt;0°C stiffens tires (-15% grip) &bull; &lt;-5°C derates motor (-20%)</div>
+            </div>
+          </div>
+
+          <div class="ctrl-bar" style="margin-top:12px;">
+            <span class="hint">Sliders compute physics live &amp; stream to active hardware if linked.</span>
+            <button class="active" onclick="sendCustomConditions()">Apply Custom Conditions</button>
+          </div>
+        </div>
+
+        <div class="card-hdr" style="padding-top:4px;">
+          <h2>Governor Override &amp; Sensors</h2>
+        </div>
+        <div class="ctrl-bar">
+          <div class="seg-group">
+            <span class="seg-label">Drive Mode:</span>
+            <button id="cmAUTO" onclick="setControl({control_mode:'AUTO'})">AUTO (Physics)</button>
+            <button id="cmFORCE_FREE" onclick="setControl({control_mode:'FORCE_FREE'})">Force FREE</button>
+            <button id="cmFORCE_HARSH" onclick="setControl({control_mode:'FORCE_HARSH'})">Force HARSH</button>
+            <button id="cmFORCE_STOP" onclick="setControl({control_mode:'FORCE_STOP'})">Force STOP</button>
+          </div>
+        </div>
+        <div class="ctrl-bar">
+          <div class="seg-group">
+            <span class="seg-label">Slope Source:</span>
+            <button id="imuOffBtn" onclick="setControl({use_live_imu:false})">Selected Condition</button>
+            <button id="imuOnBtn" onclick="setControl({use_live_imu:true})">Live I2C IMU</button>
+          </div>
+          <div class="seg-group">
+            <span class="seg-label">Buzzer (GPIO 17):</span>
+            <button id="bzPulseBtn" onclick="setControl({buzzer_mode:'pulse'})">Pulse</button>
+            <button id="bzContBtn" onclick="setControl({buzzer_mode:'continuous'})">Continuous</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Live Telemetry & Actuator Outputs -->
+      <div class="card">
+        <div class="card-hdr">
+          <h2>Live Terramechanics &amp; Actuators</h2>
+          <span id="imuLiveBadge" class="badge">IMU: —</span>
+        </div>
+
+        <div class="lambda-wrap">
+          <div class="lambda-top">
+            <div>
+              <div style="font-size:12px; color:var(--muted);">Tractive Load Ratio (&lambda; = F_req / F_avail)</div>
+              <div id="lambdaNum" class="lambda-num">0.000</div>
+            </div>
+            <div style="text-align:right; font-size:12px;">
+              <div>Clearance: <strong id="chkClear" class="ok-txt">PASS</strong></div>
+              <div>Rollover: <strong id="chkRoll" class="ok-txt">PASS</strong></div>
+            </div>
+          </div>
+          <div class="bar-track">
+            <div class="marker" style="left: 30%;" title="HARSH threshold (0.45)"></div>
+            <div class="marker" style="left: 66.67%;" title="STOP threshold (1.00)"></div>
+            <div id="lambdaFill" class="bar-fill"></div>
+          </div>
+          <div class="bar-labels">
+            <span>0.00 (FREE)</span>
+            <span>0.45 (HARSH)</span>
+            <span>1.00 (STOP)</span>
+            <span>1.50+</span>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi"><div class="k">Grade Force (F_g)</div><div id="kFg" class="v">—</div></div>
+          <div class="kpi"><div class="k">Rolling / Sink (F_r)</div><div id="kFr" class="v">—</div></div>
+          <div class="kpi"><div class="k">Aero Drag (F_d)</div><div id="kFd" class="v">—</div></div>
+          <div class="kpi"><div class="k">Total Req (F_req)</div><div id="kFreq" class="v">—</div></div>
+          <div class="kpi"><div class="k">Grip / Avail (N)</div><div id="kFavail" class="v">—</div></div>
+          <div class="kpi"><div class="k">Active Slope</div><div id="kSlope" class="v">—</div></div>
+        </div>
+
+        <div class="pwm-list">
+          <div class="pwm-item">
+            <div class="pwm-hdr"><span id="nameD9">D9: XL-5 HV ESC</span><span id="pEsc" class="pwm-val">— us</span></div>
+            <div class="pwm-bar"><div id="bEsc" class="pwm-fill"></div></div>
+            <div id="lblThrottle" class="hint">Throttle Limit: —</div>
+          </div>
+          <div class="pwm-item">
+            <div class="pwm-hdr"><span id="nameD10">D10: 2065A Shift</span><span id="pShift" class="pwm-val">— us</span></div>
+            <div class="pwm-bar"><div id="bShift" class="pwm-fill"></div></div>
+            <div id="lblGear" class="hint">Drivetrain: —</div>
+          </div>
+          <div class="pwm-item">
+            <div class="pwm-hdr"><span id="nameD11">D11: Front T-Lock</span><span id="pDiffF" class="pwm-val">— us</span></div>
+            <div class="pwm-bar"><div id="bDiffF" class="pwm-fill"></div></div>
+            <div id="lblDiffF" class="hint">—</div>
+          </div>
+          <div class="pwm-item">
+            <div class="pwm-hdr"><span id="nameD12">D12: Rear T-Lock</span><span id="pDiffR" class="pwm-val">— us</span></div>
+            <div class="pwm-bar"><div id="bDiffR" class="pwm-fill"></div></div>
+            <div id="lblDiffR" class="hint">—</div>
+          </div>
+        </div>
+
+        <div class="pkt-box">
+          <span>PWM Packet Tx: <strong id="pktStr" style="color:var(--accent);">$1500,1900,1900,1900</strong></span>
+          <span>Alarm Buzzer: <strong id="bzState">OFF</strong></span>
+        </div>
+
+        <div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:600;">Controller Event Log</div>
+          <div id="eventLog" class="log-box">Waiting for telemetry…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Embedded Digital Twin Fleet & Scenarios for GitHub Pages Standalone Simulation
+    function calcThetaMax(L, hCg) {
+      return Math.atan((Math.max(0.05, L) / 2) / Math.max(0.02, hCg)) * (180 / Math.PI);
+    }
+
+    const BUILTIN_MODELS = {
+      trx4_defender: {
+        id: "trx4_defender",
+        name: "Traxxas TRX-4 Defender",
+        category: "1/10 Scale Trail Crawler",
+        circuit: "Pi 5 (Wi-Fi) -> Arduino Nano Bridge + 6.0V BEC + 5.1V Buck + ADXL345/MPU-6050",
+        channels: { d9: "XL-5 HV ESC", d10: "2065A 2-Speed Shift", d11: "Front T-Lock Diff", d12: "Rear T-Lock Diff" },
+        specs: { m: 3.75, L: 0.324, h_cg: 0.135, h_clear: 0.080, r_tire: 0.059, A_f: 0.065, C_d: 0.65, F_motor_low: 45.0, F_motor_high: 18.0, g: 9.81, rho_air: 1.225, v_target: 1.5, k_sink: 0.25, theta_max: calcThetaMax(0.324, 0.135) }
+      },
+      slash_4x4_buggy: {
+        id: "slash_4x4_buggy",
+        name: "Traxxas Slash 4x4 Desert Buggy",
+        category: "1/10 Short-Course",
+        circuit: "Pi 5 (Wi-Fi) -> Nano/PCA9685 PWM Bridge + 6.0V VXL BEC + IMU",
+        channels: { d9: "VXL-3s ESC", d10: "Center Diff Bias", d11: "Active Front Aero", d12: "Active Rear Wing DRS" },
+        specs: { m: 2.45, L: 0.324, h_cg: 0.078, h_clear: 0.045, r_tire: 0.054, A_f: 0.048, C_d: 0.42, F_motor_low: 32.0, F_motor_high: 22.0, g: 9.81, rho_air: 1.225, v_target: 1.5, k_sink: 0.25, theta_max: calcThetaMax(0.324, 0.078) }
+      },
+      ugv_tracked_rover: {
+        id: "ugv_tracked_rover",
+        name: "6-DOF Tracked Inspection UGV",
+        category: "Skid-Steer Crawler",
+        circuit: "Pi 5 (Wi-Fi) -> Arduino Nano Bridge + Dual Track ESC + IMU",
+        channels: { d9: "Dual-Track Drive ESC", d10: "Planetary Range Box", d11: "Left Track Brake/Tension", d12: "Right Track Brake/Lock" },
+        specs: { m: 5.20, L: 0.380, h_cg: 0.110, h_clear: 0.065, r_tire: 0.048, A_f: 0.072, C_d: 0.75, F_motor_low: 68.0, F_motor_high: 34.0, g: 9.81, rho_air: 1.225, v_target: 1.5, k_sink: 0.25, theta_max: calcThetaMax(0.380, 0.110) }
+      },
+      hauler_6x6: {
+        id: "hauler_6x6",
+        name: "1/10 Heavy 6x6 Expedition Hauler",
+        category: "TRX-6 Multi-Axle",
+        circuit: "Pi 5 (Wi-Fi) -> Arduino Nano Bridge + 6V HV BEC + Tandem T-Lock",
+        channels: { d9: "XL-5 HV Crawl ESC", d10: "2-Speed Transfer Case", d11: "Front Axle T-Lock", d12: "Tandem Rear Axles Lock" },
+        specs: { m: 4.85, L: 0.454, h_cg: 0.145, h_clear: 0.085, r_tire: 0.059, A_f: 0.078, C_d: 0.72, F_motor_low: 56.0, F_motor_high: 24.0, g: 9.81, rho_air: 1.225, v_target: 1.5, k_sink: 0.25, theta_max: calcThetaMax(0.454, 0.145) }
+      }
+    };
+
+    const BUILTIN_SCENARIOS = [
+      { scenario_id: 1, track_name: "Sunny Tarmac Cruise", surface_type: "Dry Asphalt", slope_deg: 5.0, friction_coeff: 0.85, rolling_res: 0.020, mud_depth_m: 0.000, wind_speed_kmh: 10.0, temp_c: 22.0 },
+      { scenario_id: 2, track_name: "Green Valley Dirt Road", surface_type: "Dry Dirt Trail", slope_deg: 10.0, friction_coeff: 0.68, rolling_res: 0.055, mud_depth_m: 0.005, wind_speed_kmh: 15.0, temp_c: 19.0 },
+      { scenario_id: 3, track_name: "Coastal Highway Gale", surface_type: "Wet Asphalt", slope_deg: 8.0, friction_coeff: 0.65, rolling_res: 0.025, mud_depth_m: 0.000, wind_speed_kmh: 55.0, temp_c: 14.0 },
+      { scenario_id: 4, track_name: "Carpathian Forest Rain", surface_type: "Wet Mud", slope_deg: 18.0, friction_coeff: 0.40, rolling_res: 0.180, mud_depth_m: 0.040, wind_speed_kmh: 35.0, temp_c: 8.0 },
+      { scenario_id: 5, track_name: "Quarry Gravel Climb", surface_type: "Loose Gravel", slope_deg: 22.0, friction_coeff: 0.50, rolling_res: 0.090, mud_depth_m: 0.015, wind_speed_kmh: 20.0, temp_c: 16.0 },
+      { scenario_id: 6, track_name: "Moist Meadow Slope", surface_type: "Wet Grass", slope_deg: 14.0, friction_coeff: 0.35, rolling_res: 0.080, mud_depth_m: 0.010, wind_speed_kmh: 25.0, temp_c: 11.0 },
+      { scenario_id: 7, track_name: "Desert Dune Ascent", surface_type: "Dry Sand Dunes", slope_deg: 16.0, friction_coeff: 0.42, rolling_res: 0.220, mud_depth_m: 0.045, wind_speed_kmh: 40.0, temp_c: 34.0 },
+      { scenario_id: 8, track_name: "Winter Timber Trail", surface_type: "Packed Snow", slope_deg: 12.0, friction_coeff: 0.28, rolling_res: 0.120, mud_depth_m: 0.025, wind_speed_kmh: 30.0, temp_c: -4.0 },
+      { scenario_id: 9, track_name: "Flooded Logging Trench", surface_type: "Deep Mud Bog", slope_deg: 15.0, friction_coeff: 0.32, rolling_res: 0.250, mud_depth_m: 0.085, wind_speed_kmh: 25.0, temp_c: 6.0 },
+      { scenario_id: 10, track_name: "Alpine Blizzard Peak", surface_type: "Deep Snow / Ice", slope_deg: 32.0, friction_coeff: 0.15, rolling_res: 0.300, mud_depth_m: 0.090, wind_speed_kmh: 70.0, temp_c: -12.0 }
+    ];
+
+    const BUILTIN_SURFACES = [
+      { surface_type: "Dry Asphalt", track_name: "Sunny Tarmac Cruise", friction_coeff: 0.85, rolling_res: 0.020, mud_depth_m: 0.000, slope_deg: 5.0, wind_speed_kmh: 10.0, temp_c: 22.0 },
+      { surface_type: "Dry Dirt Trail", track_name: "Green Valley Dirt Road", friction_coeff: 0.68, rolling_res: 0.055, mud_depth_m: 0.005, slope_deg: 10.0, wind_speed_kmh: 15.0, temp_c: 19.0 },
+      { surface_type: "Wet Asphalt", track_name: "Coastal Highway Gale", friction_coeff: 0.65, rolling_res: 0.025, mud_depth_m: 0.000, slope_deg: 8.0, wind_speed_kmh: 55.0, temp_c: 14.0 },
+      { surface_type: "Wet Rock", track_name: "Wet Rock Crawler Line", friction_coeff: 0.48, rolling_res: 0.040, mud_depth_m: 0.000, slope_deg: 15.0, wind_speed_kmh: 15.0, temp_c: 14.0 },
+      { surface_type: "Loose Gravel", track_name: "Quarry Gravel Climb", friction_coeff: 0.50, rolling_res: 0.090, mud_depth_m: 0.015, slope_deg: 22.0, wind_speed_kmh: 20.0, temp_c: 16.0 },
+      { surface_type: "Wet Grass", track_name: "Moist Meadow Slope", friction_coeff: 0.35, rolling_res: 0.080, mud_depth_m: 0.010, slope_deg: 14.0, wind_speed_kmh: 25.0, temp_c: 11.0 },
+      { surface_type: "Wet Mud", track_name: "Carpathian Forest Rain", friction_coeff: 0.40, rolling_res: 0.180, mud_depth_m: 0.040, slope_deg: 18.0, wind_speed_kmh: 35.0, temp_c: 8.0 },
+      { surface_type: "Dry Sand Dunes", track_name: "Desert Dune Ascent", friction_coeff: 0.42, rolling_res: 0.220, mud_depth_m: 0.045, slope_deg: 16.0, wind_speed_kmh: 40.0, temp_c: 34.0 },
+      { surface_type: "Packed Snow", track_name: "Winter Timber Trail", friction_coeff: 0.28, rolling_res: 0.120, mud_depth_m: 0.025, slope_deg: 12.0, wind_speed_kmh: 30.0, temp_c: -4.0 },
+      { surface_type: "Deep Mud Bog", track_name: "Flooded Logging Trench", friction_coeff: 0.32, rolling_res: 0.250, mud_depth_m: 0.085, slope_deg: 15.0, wind_speed_kmh: 25.0, temp_c: 6.0 },
+      { surface_type: "Deep Snow / Ice", track_name: "Alpine Blizzard Peak", friction_coeff: 0.15, rolling_res: 0.300, mud_depth_m: 0.090, slope_deg: 32.0, wind_speed_kmh: 70.0, temp_c: -12.0 },
+      { surface_type: "Glare Ice", track_name: "Glare Ice Sheet", friction_coeff: 0.10, rolling_res: 0.015, mud_depth_m: 0.000, slope_deg: 5.0, wind_speed_kmh: 20.0, temp_c: -8.0 }
+    ];
+
+    // Local standalone simulator state
+    const localSim = {
+      active_model_id: "trx4_defender",
+      specs: { ...BUILTIN_MODELS.trx4_defender.specs },
+      models: JSON.parse(JSON.stringify(BUILTIN_MODELS)),
+      scenarios: BUILTIN_SCENARIOS,
+      surface_presets: BUILTIN_SURFACES,
+      condition_mode: "PRESET",
+      control_mode: "AUTO",
+      use_live_imu: false,
+      buzzer_mode: "pulse",
+      scenario_idx: 0,
+      custom_scenario: { ...BUILTIN_SCENARIOS[0] },
+      event_log: ["[SIM] Browser standalone physics engine active (GitHub Pages mode)."]
+    };
+
+    function logLocal(msg) {
+      const t = new Date().toTimeString().slice(0, 8);
+      localSim.event_log.push(`[${t}] SIM: ${msg}`);
+      if (localSim.event_log.length > 25) localSim.event_log.shift();
+    }
+
+    function computePhysicsFrame(sc, sp, controlMode) {
+      const slope = sc.slope_deg;
+      const rad = slope * Math.PI / 180;
+      const cosT = Math.cos(rad);
+      const sinT = Math.sin(rad);
+      const clearance_status = sc.mud_depth_m >= sp.h_clear ? "HIGH-CENTERED" : "PASS";
+      const rollover_status = Math.abs(slope) >= sp.theta_max ? "TIP-OVER" : "PASS";
+
+      const f_g = sp.m * sp.g * sinT;
+      const f_r = sp.m * sp.g * cosT * (sc.rolling_res + sp.k_sink * (sc.mud_depth_m / sp.r_tire));
+      const v_rel = sp.v_target + (sc.wind_speed_kmh / 3.6);
+      const f_d = 0.5 * sp.rho_air * sp.C_d * sp.A_f * v_rel * v_rel;
+      const f_req = f_g + f_r + f_d;
+
+      const tGrip = sc.temp_c < 0.0 ? 0.85 : 1.0;
+      const tMotor = sc.temp_c < -5.0 ? 0.80 : 1.0;
+      const f_grip = (sc.friction_coeff * tGrip) * sp.m * sp.g * cosT;
+      const f_avail = Math.max(0.0, Math.min(f_grip, sp.F_motor_low * tMotor));
+      const load_ratio = f_avail > 0.0 ? (f_req / f_avail) : 99.9;
+
+      let state = "FREE", drivetrain_label = "HIGH / OPEN", throttle_limit = 1.0;
+      let pwm = { esc_us: 2000, shift_us: 1100, diff_f_us: 1100, diff_r_us: 1100 };
+      let buzzer_requested = false;
+
+      if (controlMode === "FORCE_STOP") {
+        state = "STOP"; drivetrain_label = "LOW / LOCKED (E-STOP)"; throttle_limit = 0.0;
+        pwm = { esc_us: 1500, shift_us: 1900, diff_f_us: 1900, diff_r_us: 1900 };
+        buzzer_requested = true;
+      } else if (controlMode === "FORCE_FREE") {
+        state = "FREE"; drivetrain_label = "HIGH / OPEN (FORCED)"; throttle_limit = 1.0;
+      } else if (controlMode === "FORCE_HARSH") {
+        state = "HARSH"; drivetrain_label = "LOW / LOCKED (FORCED)"; throttle_limit = 0.25;
+        pwm = { esc_us: 1625, shift_us: 1900, diff_f_us: 1900, diff_r_us: 1900 };
+      } else if (clearance_status !== "PASS" || rollover_status !== "PASS" || load_ratio > 1.0) {
+        state = "STOP"; drivetrain_label = "LOW / LOCKED"; throttle_limit = 0.0;
+        pwm = { esc_us: 1500, shift_us: 1900, diff_f_us: 1900, diff_r_us: 1900 };
+        buzzer_requested = true;
+      } else if (load_ratio > 0.45) {
+        state = "HARSH"; drivetrain_label = "LOW / LOCKED";
+        throttle_limit = Math.max(0.25, Math.min(1.0, Math.round((1.15 - load_ratio) * 100) / 100));
+        const esc = Math.max(1000, Math.min(2000, Math.round(1500 + 500 * throttle_limit)));
+        pwm = { esc_us: esc, shift_us: 1900, diff_f_us: 1900, diff_r_us: 1900 };
+      }
+
+      return {
+        scenario: sc, effective_slope_deg: slope, imu_pitch_deg: slope,
+        imu_source: localSim.condition_mode === "CUSTOM" ? "BROWSER_CUSTOM" : "BROWSER_PRESET",
+        clearance_status, rollover_status, f_g, f_r, f_d, f_req, f_grip, f_avail,
+        load_ratio, state, drivetrain_label, throttle_limit, pwm, buzzer_requested,
+        packet_sent: `$${pwm.esc_us},${pwm.shift_us},${pwm.diff_f_us},${pwm.diff_r_us}\n`
+      };
+    }
+
+    function buildLocalState() {
+      const sc = localSim.condition_mode === "CUSTOM"
+        ? localSim.custom_scenario
+        : localSim.scenarios[localSim.scenario_idx];
+      return {
+        hostname: window.location.hostname || "github.io",
+        active_model_id: localSim.active_model_id,
+        specs: localSim.specs,
+        models: localSim.models,
+        condition_mode: localSim.condition_mode,
+        control_mode: localSim.control_mode,
+        use_live_imu: localSim.use_live_imu,
+        buzzer_mode: localSim.buzzer_mode,
+        loop_hz: 15,
+        hardware_status: { serial: "Browser Sim Only", imu: "Virtual Sliders/Presets", gpio: "Virtual Buzzer" },
+        scenarios: localSim.scenarios,
+        surface_presets: localSim.surface_presets,
+        telemetry: computePhysicsFrame(sc, localSim.specs, localSim.control_mode),
+        event_log: localSim.event_log
+      };
+    }
+
+    function predictStateForCard(s, sp) {
+      return computePhysicsFrame(s, sp, "AUTO").state;
+    }
+
+    let backendUrl = "";
+    let isStandaloneMode = true;
+    let latestState = null;
+    let isDraggingCustom = false;
+    let customDebounce = null;
+    let eventSource = null;
+
+    function detectInitialEndpoint() {
+      const proto = window.location.protocol;
+      const host = window.location.hostname;
+      if ((proto === "http:" || proto === "https:") && !host.endsWith("github.io") && host !== "") {
+        return window.location.origin;
+      }
+      return "http://127.0.0.1:5000";
+    }
+
+    function switchTab(tab) {
+      document.getElementById("tabPresetPanel").classList.toggle("hidden", tab !== "preset");
+      document.getElementById("tabCustomPanel").classList.toggle("hidden", tab !== "custom");
+      document.getElementById("tabPresetBtn").classList.toggle("active", tab === "preset");
+      document.getElementById("tabCustomBtn").classList.toggle("active", tab === "custom");
+    }
+
+    function toggleCustomSpecsDrawer() {
+      const el = document.getElementById("customSpecsDrawer");
+      el.classList.toggle("hidden");
+      if (!el.classList.contains("hidden") && latestState && latestState.specs) {
+        populateSpecsInputs(latestState.specs);
+      }
+    }
+
+    function populateSpecsInputs(sp) {
+      document.getElementById("spM").value = sp.m;
+      document.getElementById("spL").value = sp.L;
+      document.getElementById("spHcg").value = sp.h_cg;
+      document.getElementById("spHclear").value = sp.h_clear;
+      document.getElementById("spRtire").value = sp.r_tire;
+      document.getElementById("spAf").value = sp.A_f;
+      document.getElementById("spCd").value = sp.C_d;
+      document.getElementById("spFlow").value = sp.F_motor_low;
+      document.getElementById("spFhigh").value = sp.F_motor_high;
+    }
+
+    async function apiPost(path, payload) {
+      if (isStandaloneMode) {
+        handleLocalMutation(path, payload || {});
+        renderState(buildLocalState());
+        return;
+      }
+      try {
+        const res = await fetch(backendUrl + path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload || {})
+        });
+        const data = await res.json();
+        if (data && data.state) renderState(data.state);
+      } catch (err) {
+        logLocal("Pi connection lost, falling back to browser simulation: " + err.message);
+        switchToStandalone();
+      }
+    }
+
+    function handleLocalMutation(path, body) {
+      if (path === "/api/model") {
+        if (body.custom_specs) {
+          const cs = body.custom_specs;
+          const cur = localSim.specs;
+          const m = Math.max(0.2, parseFloat(cs.m ?? cur.m));
+          const L = Math.max(0.05, parseFloat(cs.L ?? cur.L));
+          const h_cg = Math.max(0.02, parseFloat(cs.h_cg ?? cur.h_cg));
+          localSim.specs = {
+            ...cur, m, L, h_cg,
+            h_clear: Math.max(0.005, parseFloat(cs.h_clear ?? cur.h_clear)),
+            r_tire: Math.max(0.01, parseFloat(cs.r_tire ?? cur.r_tire)),
+            A_f: Math.max(0.005, parseFloat(cs.A_f ?? cur.A_f)),
+            C_d: Math.max(0.05, parseFloat(cs.C_d ?? cur.C_d)),
+            F_motor_low: Math.max(1.0, parseFloat(cs.F_motor_low ?? cur.F_motor_low)),
+            F_motor_high: Math.max(1.0, parseFloat(cs.F_motor_high ?? cur.F_motor_high)),
+            theta_max: calcThetaMax(L, h_cg)
+          };
+          localSim.active_model_id = "custom_model";
+          logLocal(`Custom vehicle specs applied (m=${m.toFixed(2)}kg, L=${L.toFixed(3)}m)`);
+        } else if (body.model_id && localSim.models[body.model_id]) {
+          localSim.active_model_id = body.model_id;
+          localSim.specs = { ...localSim.models[body.model_id].specs };
+          logLocal(`Model -> ${localSim.models[body.model_id].name}`);
+        }
+      } else if (path === "/api/scenario") {
+        if (body.action === "next") {
+          localSim.scenario_idx = (localSim.scenario_idx + 1) % localSim.scenarios.length;
+        } else if (body.action === "prev") {
+          localSim.scenario_idx = (localSim.scenario_idx - 1 + localSim.scenarios.length) % localSim.scenarios.length;
+        } else if (body.id !== undefined) {
+          const idx = localSim.scenarios.findIndex(s => s.scenario_id === Number(body.id));
+          if (idx >= 0) localSim.scenario_idx = idx;
+        }
+        localSim.condition_mode = "PRESET";
+        logLocal(`Scenario -> #${localSim.scenarios[localSim.scenario_idx].scenario_id}`);
+      } else if (path === "/api/conditions") {
+        localSim.condition_mode = "CUSTOM";
+        localSim.custom_scenario = { ...localSim.custom_scenario, ...body, scenario_id: 0 };
+        logLocal(`Custom terrain -> ${localSim.custom_scenario.surface_type}, ${localSim.custom_scenario.slope_deg.toFixed(1)}°`);
+      } else if (path === "/api/control") {
+        if (body.control_mode) { localSim.control_mode = body.control_mode; logLocal("Mode -> " + body.control_mode); }
+        if (body.use_live_imu !== undefined) localSim.use_live_imu = !!body.use_live_imu;
+        if (body.buzzer_mode) localSim.buzzer_mode = body.buzzer_mode;
+      }
+    }
+
+    function selectModel(modelId) { apiPost("/api/model", { model_id: modelId }); }
+    function selectScenario(id) { apiPost("/api/scenario", { id }); }
+    function stepScenario(dir) { apiPost("/api/scenario", { action: dir }); }
+    function setControl(obj) { apiPost("/api/control", obj); }
+    function reloadExcel() { if (!isStandaloneMode) apiPost("/api/reload", {}); }
+
+    function applyCustomSpecs() {
+      apiPost("/api/model", {
+        custom_specs: {
+          m: parseFloat(document.getElementById("spM").value),
+          L: parseFloat(document.getElementById("spL").value),
+          h_cg: parseFloat(document.getElementById("spHcg").value),
+          h_clear: parseFloat(document.getElementById("spHclear").value),
+          r_tire: parseFloat(document.getElementById("spRtire").value),
+          A_f: parseFloat(document.getElementById("spAf").value),
+          C_d: parseFloat(document.getElementById("spCd").value),
+          F_motor_low: parseFloat(document.getElementById("spFlow").value),
+          F_motor_high: parseFloat(document.getElementById("spFhigh").value)
+        }
+      });
+    }
+
+    function copyActiveToCustom() {
+      if (!latestState || !latestState.telemetry) return;
+      populateCustomFields(latestState.telemetry.scenario);
+      switchTab("custom");
+      sendCustomConditions();
+    }
+
+    function populateCustomFields(sc) {
+      document.getElementById("custTrackName").value = sc.track_name || "Custom Trail";
+      document.getElementById("slSlope").value = sc.slope_deg;
+      document.getElementById("slMu").value = sc.friction_coeff;
+      document.getElementById("slCrr").value = sc.rolling_res;
+      document.getElementById("slDepth").value = sc.mud_depth_m;
+      document.getElementById("slWind").value = sc.wind_speed_kmh;
+      document.getElementById("slTemp").value = sc.temp_c;
+      const sel = document.getElementById("surfacePresetSelect");
+      for (const opt of sel.options) {
+        if (opt.value === sc.surface_type) { sel.value = sc.surface_type; break; }
+      }
+      updateSliderReadouts();
+    }
+
+    function updateSliderReadouts() {
+      const slope = parseFloat(document.getElementById("slSlope").value);
+      const mu = parseFloat(document.getElementById("slMu").value);
+      const crr = parseFloat(document.getElementById("slCrr").value);
+      const depth = parseFloat(document.getElementById("slDepth").value);
+      const wind = parseFloat(document.getElementById("slWind").value);
+      const temp = parseFloat(document.getElementById("slTemp").value);
+      document.getElementById("valSlope").textContent = slope.toFixed(1) + "°";
+      document.getElementById("valMu").textContent = mu.toFixed(2);
+      document.getElementById("valCrr").textContent = crr.toFixed(3);
+      document.getElementById("valDepth").textContent = depth.toFixed(3) + " m";
+      document.getElementById("valWind").textContent = Math.round(wind) + " km/h";
+      document.getElementById("valTemp").textContent = (temp >= 0 ? "+" : "") + Math.round(temp) + " °C";
+    }
+
+    function onSliderMove() {
+      isDraggingCustom = true;
+      updateSliderReadouts();
+      clearTimeout(customDebounce);
+      customDebounce = setTimeout(() => { isDraggingCustom = false; sendCustomConditions(); }, 80);
+    }
+
+    function scheduleCustomUpdate() {
+      clearTimeout(customDebounce);
+      customDebounce = setTimeout(sendCustomConditions, 80);
+    }
+
+    function applySurfaceQuickFill() {
+      if (!latestState) return;
+      const chosen = document.getElementById("surfacePresetSelect").value;
+      const preset = (latestState.surface_presets || []).find(p => p.surface_type === chosen);
+      if (!preset) return;
+      document.getElementById("custTrackName").value = preset.track_name || ("Custom " + preset.surface_type);
+      document.getElementById("slMu").value = preset.friction_coeff;
+      document.getElementById("slCrr").value = preset.rolling_res;
+      document.getElementById("slDepth").value = preset.mud_depth_m;
+      if (preset.slope_deg !== undefined) document.getElementById("slSlope").value = preset.slope_deg;
+      if (preset.wind_speed_kmh !== undefined) document.getElementById("slWind").value = preset.wind_speed_kmh;
+      if (preset.temp_c !== undefined) document.getElementById("slTemp").value = preset.temp_c;
+      updateSliderReadouts();
+      sendCustomConditions();
+    }
+
+    function sendCustomConditions() {
+      const sel = document.getElementById("surfacePresetSelect").value || "Custom Surface";
+      apiPost("/api/conditions", {
+        track_name: document.getElementById("custTrackName").value || "Custom Wi-Fi Trail",
+        surface_type: sel,
+        slope_deg: parseFloat(document.getElementById("slSlope").value),
+        friction_coeff: parseFloat(document.getElementById("slMu").value),
+        rolling_res: parseFloat(document.getElementById("slCrr").value),
+        mud_depth_m: parseFloat(document.getElementById("slDepth").value),
+        wind_speed_kmh: parseFloat(document.getElementById("slWind").value),
+        temp_c: parseFloat(document.getElementById("slTemp").value)
+      });
+    }
+
+    function pwmPct(us) {
+      return Math.max(0, Math.min(100, ((us - 1000) / 1000) * 100));
+    }
+
+    function updateConnectionUI(live) {
+      isStandaloneMode = !live;
+      const dot = document.getElementById("connDot");
+      const badge = document.getElementById("runModeBadge");
+      const reloadBtn = document.getElementById("btnReloadExcel");
+      if (live) {
+        dot.className = "dot live";
+        document.getElementById("connText").textContent = "Wi-Fi Live Telemetry";
+        badge.className = "mode-chip mode-live";
+        badge.textContent = "WIFI HARDWARE LIVE";
+        reloadBtn.disabled = false;
+      } else {
+        dot.className = "dot sim";
+        document.getElementById("connText").textContent = "Browser Client Physics Active";
+        badge.className = "mode-chip mode-sim";
+        badge.textContent = "STANDALONE BROWSER SIM (GitHub Pages Ready)";
+        reloadBtn.disabled = true;
+      }
+    }
+
+    function renderState(st) {
+      latestState = st;
+      const t = st.telemetry;
+      if (!t) return;
+      const sc = t.scenario;
+      const sp = st.specs || BUILTIN_MODELS.trx4_defender.specs;
+      const models = st.models || BUILTIN_MODELS;
+      const activeId = st.active_model_id || "trx4_defender";
+      const activeModel = models[activeId];
+
+      document.getElementById("hostLabel").textContent = "Host: " + (st.hostname || "localhost");
+      document.getElementById("condLabel").textContent = `Active: ${sc.track_name} (${sc.surface_type})`;
+      document.getElementById("condSourceBadge").textContent =
+        st.condition_mode === "CUSTOM" ? "CUSTOM SLIDERS" : ("SCENARIO #" + sc.scenario_id);
+
+      const pill = document.getElementById("statePill");
+      pill.textContent = st.control_mode === "AUTO" ? t.state : (t.state + " (" + st.control_mode.replace("FORCE_", "") + ")");
+      pill.className = "state-pill state-" + t.state;
+
+      // Render Model Fleet Bar
+      const activeLabel = activeModel ? activeModel.name : "Custom Vehicle Specs";
+      document.getElementById("activeModelBadge").textContent = activeLabel;
+      document.getElementById("circuitText").textContent =
+        activeModel ? activeModel.circuit : "Custom Controller / Multi-Channel PWM Bridge";
+      document.getElementById("specsSummaryText").textContent =
+        `m=${Number(sp.m).toFixed(2)}kg | L=${Number(sp.L).toFixed(3)}m | clear=${Number(sp.h_clear).toFixed(3)}m | F_low=${Number(sp.F_motor_low).toFixed(1)}N | tip=${Number(sp.theta_max).toFixed(1)}°`;
+      document.getElementById("hintRollover").textContent = `Static rollover threshold: ±${Number(sp.theta_max).toFixed(1)}°`;
+      document.getElementById("hintClearance").textContent = `Vehicle clearance limit: ${Number(sp.h_clear).toFixed(3)} m (High-Centered)`;
+
+      const fleetGrid = document.getElementById("fleetGrid");
+      fleetGrid.innerHTML = "";
+      for (const mObj of Object.values(models)) {
+        const card = document.createElement("button");
+        card.className = "model-card" + (activeId === mObj.id ? " selected" : "");
+        card.onclick = () => selectModel(mObj.id);
+        card.innerHTML = `
+          <div class="m-name">${mObj.name}</div>
+          <div class="m-cat">${mObj.category}</div>
+          <div class="m-spec">${mObj.specs.m}kg &bull; ${mObj.specs.F_motor_low}N Low &bull; ${mObj.specs.h_clear}m Clear</div>`;
+        fleetGrid.appendChild(card);
+      }
+      const custBtn = document.createElement("button");
+      custBtn.className = "model-card" + (activeId === "custom_model" ? " selected" : "");
+      custBtn.onclick = toggleCustomSpecsDrawer;
+      custBtn.innerHTML = `
+        <div class="m-name">Custom Vehicle Specs</div>
+        <div class="m-cat">Editable Kinematics</div>
+        <div class="m-spec">${activeId === "custom_model" ? `${Number(sp.m).toFixed(2)}kg &bull; Custom` : "Click to edit chassis"}</div>`;
+      fleetGrid.appendChild(custBtn);
+
+      if (activeModel && activeModel.channels) {
+        document.getElementById("nameD9").textContent = "D9: " + activeModel.channels.d9;
+        document.getElementById("nameD10").textContent = "D10: " + activeModel.channels.d10;
+        document.getElementById("nameD11").textContent = "D11: " + activeModel.channels.d11;
+        document.getElementById("nameD12").textContent = "D12: " + activeModel.channels.d12;
+      }
+
+      // Hardware strip
+      const hw = st.hardware_status || {};
+      document.getElementById("hwSerial").textContent = hw.serial || "—";
+      document.getElementById("hwImu").textContent = hw.imu || "—";
+      document.getElementById("hwGpio").textContent = hw.gpio || "—";
+      document.getElementById("imuLiveBadge").textContent = `IMU: ${t.imu_pitch_deg.toFixed(1)}° (${t.imu_source})`;
+
+      // Controls active state
+      for (const m of ["AUTO", "FORCE_FREE", "FORCE_HARSH", "FORCE_STOP"]) {
+        const btn = document.getElementById("cm" + m);
+        if (btn) btn.classList.toggle("active", st.control_mode === m);
+      }
+      document.getElementById("btnAutoTop").classList.toggle("active", st.control_mode === "AUTO");
+      document.getElementById("imuOffBtn").classList.toggle("active", !st.use_live_imu);
+      document.getElementById("imuOnBtn").classList.toggle("active", !!st.use_live_imu);
+      document.getElementById("bzPulseBtn").classList.toggle("active", st.buzzer_mode === "pulse");
+      document.getElementById("bzContBtn").classList.toggle("active", st.buzzer_mode === "continuous");
+
+      const sel = document.getElementById("surfacePresetSelect");
+      if (sel.options.length <= 1 && (st.surface_presets || []).length > 0) {
+        for (const p of st.surface_presets) {
+          const opt = document.createElement("option");
+          opt.value = p.surface_type;
+          opt.textContent = `${p.surface_type} (mu=${p.friction_coeff.toFixed(2)}, Crr=${p.rolling_res.toFixed(3)})`;
+          sel.appendChild(opt);
+        }
+      }
+
+      // Scenario cards (state badge updates dynamically per active vehicle model!)
+      const grid = document.getElementById("scenGrid");
+      grid.innerHTML = "";
+      for (const s of (st.scenarios || [])) {
+        const isSelected = st.condition_mode === "PRESET" && s.scenario_id === sc.scenario_id;
+        const predStatus = predictStateForCard(s, sp);
+        const btn = document.createElement("button");
+        btn.className = "scen-card" + (isSelected ? " selected" : "");
+        btn.onclick = () => selectScenario(s.scenario_id);
+        btn.innerHTML = `
+          <div class="scen-top">
+            <span class="scen-title">#${s.scenario_id} ${s.track_name}</span>
+            <span class="mini-pill mp-${predStatus}">${predStatus}</span>
+          </div>
+          <div class="scen-surface">${s.surface_type}</div>
+          <div class="scen-meta">
+            <span>Slope ${s.slope_deg}&deg;</span>
+            <span>&mu;=${s.friction_coeff.toFixed(2)}</span>
+            <span>Mud ${s.mud_depth_m.toFixed(3)}m</span>
+            <span>Wind ${s.wind_speed_kmh}km/h</span>
+            <span>${s.temp_c}&deg;C</span>
+          </div>`;
+        grid.appendChild(btn);
+      }
+
+      if (st.condition_mode === "CUSTOM" && !isDraggingCustom && document.activeElement.tagName !== "INPUT") {
+        populateCustomFields(sc);
+      }
+
+      // Telemetry gauges
+      const lam = t.load_ratio;
+      document.getElementById("lambdaNum").textContent = lam.toFixed(4);
+      const fill = document.getElementById("lambdaFill");
+      fill.style.width = Math.max(0, Math.min(100, (lam / 1.5) * 100)) + "%";
+      fill.style.background = t.state === "FREE" ? "var(--free)" : (t.state === "HARSH" ? "var(--harsh)" : "var(--stop)");
+
+      const cc = document.getElementById("chkClear");
+      cc.textContent = t.clearance_status;
+      cc.className = t.clearance_status === "PASS" ? "ok-txt" : "bad-txt";
+
+      const cr = document.getElementById("chkRoll");
+      cr.textContent = t.rollover_status;
+      cr.className = t.rollover_status === "PASS" ? "ok-txt" : "bad-txt";
+
+      document.getElementById("kFg").textContent = t.f_g.toFixed(2) + " N";
+      document.getElementById("kFr").textContent = t.f_r.toFixed(2) + " N";
+      document.getElementById("kFd").textContent = t.f_d.toFixed(2) + " N";
+      document.getElementById("kFreq").textContent = t.f_req.toFixed(2) + " N";
+      document.getElementById("kFavail").textContent = `${t.f_grip.toFixed(1)} / ${t.f_avail.toFixed(1)} N`;
+      document.getElementById("kSlope").textContent = t.effective_slope_deg.toFixed(1) + "°";
+
+      // Actuators
+      const p = t.pwm;
+      document.getElementById("pEsc").textContent = p.esc_us + " us";
+      document.getElementById("bEsc").style.width = pwmPct(p.esc_us) + "%";
+      document.getElementById("lblThrottle").textContent = `Throttle Limit: ${Math.round(t.throttle_limit * 100)}%`;
+
+      document.getElementById("pShift").textContent = p.shift_us + " us";
+      document.getElementById("bShift").style.width = pwmPct(p.shift_us) + "%";
+      document.getElementById("lblGear").textContent = p.shift_us <= 1400 ? "LOW-LOAD / HIGH" : "HIGH-TORQUE / LOW";
+
+      document.getElementById("pDiffF").textContent = p.diff_f_us + " us";
+      document.getElementById("bDiffF").style.width = pwmPct(p.diff_f_us) + "%";
+      document.getElementById("lblDiffF").textContent = p.diff_f_us <= 1400 ? "OPEN / UNLOCKED" : "LOCKED / ENGAGED";
+
+      document.getElementById("pDiffR").textContent = p.diff_r_us + " us";
+      document.getElementById("bDiffR").style.width = pwmPct(p.diff_r_us) + "%";
+      document.getElementById("lblDiffR").textContent = p.diff_r_us <= 1400 ? "OPEN / UNLOCKED" : "LOCKED / ENGAGED";
+
+      document.getElementById("pktStr").textContent = (t.packet_sent || "").trim() || `$${p.esc_us},${p.shift_us},${p.diff_f_us},${p.diff_r_us}`;
+      const bz = document.getElementById("bzState");
+      bz.textContent = t.buzzer_requested ? `ON (${st.buzzer_mode.toUpperCase()})` : "OFF (Silent)";
+      bz.className = t.buzzer_requested ? "bad-txt" : "ok-txt";
+
+      const logBox = document.getElementById("eventLog");
+      logBox.innerHTML = (st.event_log || []).slice(-18).reverse().map(l => `<div>${escapeHtml(l)}</div>`).join("");
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    function switchToStandalone() {
+      if (eventSource) { eventSource.close(); eventSource = null; }
+      updateConnectionUI(false);
+      renderState(buildLocalState());
+    }
+
+    async function connectBridge() {
+      const raw = document.getElementById("endpointInput").value.trim().replace(/\/+$/, "");
+      if (!raw) { switchToStandalone(); return; }
+      backendUrl = /^https?:\/\//i.test(raw) ? raw : ("http://" + raw);
+      document.getElementById("endpointInput").value = backendUrl;
+      if (eventSource) { eventSource.close(); eventSource = null; }
+
+      try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 1800);
+        const res = await fetch(backendUrl + "/api/state", { signal: ctrl.signal });
+        clearTimeout(tid);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const st = await res.json();
+        updateConnectionUI(true);
+        renderState(st);
+
+        eventSource = new EventSource(backendUrl + "/api/stream");
+        eventSource.onmessage = (ev) => {
+          try { renderState(JSON.parse(ev.data)); } catch (_) {}
+        };
+        eventSource.onerror = () => {
+          if (!isStandaloneMode) {
+            document.getElementById("connDot").className = "dot";
+            document.getElementById("connText").textContent = "Reconnecting over Wi-Fi…";
+          }
+        };
+      } catch (err) {
+        logLocal(`Bridge unreachable (${backendUrl}) — running standalone sim.`);
+        switchToStandalone();
+      }
+    }
+
+    document.getElementById("endpointInput").value = detectInitialEndpoint();
+    renderState(buildLocalState());
+    connectBridge();
+  </script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "author": "Traxxas TRX-4 HIL Digital Twin",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-nano",
+      "id": "nano",
+      "top": 60,
+      "left": -280,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-mpu6050",
+      "id": "imu1",
+      "top": -95,
+      "left": -330,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_step",
+      "top": 195,
+      "left": -325,
+      "attrs": { "color": "blue" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": 175,
+      "left": -155,
+      "attrs": { "volume": "0.5" }
+    },
+    {
+      "type": "wokwi-breadboard-half",
+      "id": "bb1",
+      "top": 100,
+      "left": 40,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-vcc",
+      "id": "bec_6v",
+      "top": 10,
+      "left": 50,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-gnd",
+      "id": "gnd_com",
+      "top": 20,
+      "left": 120,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo_esc",
+      "top": -80,
+      "left": 420,
+      "attrs": { "horn": "single", "hornColor": "#ef4444" }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo_shift",
+      "top": 50,
+      "left": 420,
+      "attrs": { "horn": "double", "hornColor": "#eab308" }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo_diff_f",
+      "top": 180,
+      "left": 420,
+      "attrs": { "horn": "single", "hornColor": "#22c55e" }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo_diff_r",
+      "top": 310,
+      "left": 420,
+      "attrs": { "horn": "single", "hornColor": "#3b82f6" }
+    },
+    {
+      "type": "wokwi-logic-analyzer",
+      "id": "logic1",
+      "top": 330,
+      "left": -290,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_pi_note",
+      "top": -185,
+      "left": -360,
+      "attrs": { "text": "TRX-4 Full Bench Twin (Wokwi has no Pi 5 part)\nIMU (A4/A5), Touch/Step Btn (D2) & Buzzer (D4)\nwire directly to Nano here for full simulation" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_btn",
+      "top": 270,
+      "left": -355,
+      "attrs": { "text": "Touch/Step Btn (D2)" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_bz",
+      "top": 270,
+      "left": -185,
+      "attrs": { "text": "STOP Alarm (D4)" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_nano",
+      "top": -15,
+      "left": -155,
+      "attrs": { "text": "Arduino Nano V3.0\n$ESC,SHIFT,DIFF_F,DIFF_R" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_bec",
+      "top": -55,
+      "left": 30,
+      "attrs": { "text": "6.0 V Traxxas BEC Rail (Isolated from Nano 5V!)\n(On physical truck: add 470uF Cap across + & -)" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_esc",
+      "top": -65,
+      "left": 610,
+      "attrs": { "text": "XL-5 HV ESC Throttle (D9)\n1500us=Stop | 2000us=100% Fwd" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_shift",
+      "top": 65,
+      "left": 610,
+      "attrs": { "text": "2065A Shift Servo (D10)\n1100us=High | 1900us=Low Gear" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_df",
+      "top": 195,
+      "left": 610,
+      "attrs": { "text": "2065A Front T-Lock (D11)\n1100us=Open | 1900us=Locked" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_dr",
+      "top": 325,
+      "left": 610,
+      "attrs": { "text": "2065A Rear T-Lock (D12)\n1100us=Open | 1900us=Locked" }
+    }
+  ],
+  "connections": [
+    [ "bec_6v:VCC", "bb1:tp.1", "red", [ "v0" ] ],
+    [ "gnd_com:GND", "bb1:tn.2", "black", [ "v0" ] ],
+    [ "nano:GND.1", "bb1:tn.1", "black", [ "v0" ] ],
+
+    [ "imu1:VCC", "nano:5V", "red", [ "v0" ] ],
+    [ "imu1:GND", "bb1:tn.4", "black", [ "v0" ] ],
+    [ "imu1:SDA", "nano:A4", "cyan", [ "v0" ] ],
+    [ "imu1:SCL", "nano:A5", "purple", [ "v0" ] ],
+
+    [ "btn_step:1.l", "nano:2", "blue", [ "v0" ] ],
+    [ "btn_step:2.l", "bb1:tn.5", "black", [ "v0" ] ],
+
+    [ "bz1:2", "nano:4", "magenta", [ "v0" ] ],
+    [ "bz1:1", "bb1:tn.6", "black", [ "v0" ] ],
+
+    [ "nano:9", "servo_esc:PWM", "orange", [ "v0" ] ],
+    [ "bb1:tp.10", "servo_esc:V+", "red", [ "v0" ] ],
+    [ "bb1:tn.10", "servo_esc:GND", "black", [ "v0" ] ],
+
+    [ "nano:10", "servo_shift:PWM", "yellow", [ "v0" ] ],
+    [ "bb1:tp.14", "servo_shift:V+", "red", [ "v0" ] ],
+    [ "bb1:tn.14", "servo_shift:GND", "black", [ "v0" ] ],
+
+    [ "nano:11", "servo_diff_f:PWM", "green", [ "v0" ] ],
+    [ "bb1:tp.18", "servo_diff_f:V+", "red", [ "v0" ] ],
+    [ "bb1:tn.18", "servo_diff_f:GND", "black", [ "v0" ] ],
+
+    [ "nano:12", "servo_diff_r:PWM", "blue", [ "v0" ] ],
+    [ "bb1:tp.22", "servo_diff_r:V+", "red", [ "v0" ] ],
+    [ "bb1:tn.22", "servo_diff_r:GND", "black", [ "v0" ] ],
+
+    [ "nano:9", "logic1:D0", "orange", [ "v0" ] ],
+    [ "nano:10", "logic1:D1", "yellow", [ "v0" ] ],
+    [ "nano:11", "logic1:D2", "green", [ "v0" ] ],
+    [ "nano:12", "logic1:D3", "blue", [ "v0" ] ],
+    [ "nano:4", "logic1:D4", "magenta", [ "v0" ] ],
+    [ "logic1:GND", "bb1:tn.3", "black", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}
